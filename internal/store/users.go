@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	
 )
 
 type User struct {
@@ -17,25 +18,41 @@ type UsersStore struct {
 	db *sql.DB
 }
 
-func (s *UsersStore) Create(ctx context.Context, user *User) error {
-	query := `
-	INSERT INTO users (username, password, email) VALUES($1, $2, $3) RETURNING id,
-	created_at`
+func (s *UsersStore) Create(ctx context.Context, userID int64) (*User, error) {
+ `  SELECT id, username, email, password, created_at
+	FROM users
+	WHERE id = $1
+`
 
+	ctx,cancel :=context.WithTimeout(ctx, QueryTimeoutDuration)
+	defer cancel()
+
+	user := &User{}
 	err := s.db.QueryRowContext(
 		ctx,
 		query,
+		user.ID
+		).Scan(
+		&user.ID,
 		user.Username,
 		user.Password,
 		user.Email,
-	).Scan(
-		&user.ID,
 		&user.CreatedAt,
 	)
 
 	if err != nil {
-		return err
+		switch err {
+        case sql.ErrNoRows:
+			return nil, ErrNotFound
+			default:
+				return nil, err		
+		}
+	
+
 	}
 
-	return nil
+	return user, nil
 }
+
+
+
